@@ -1,11 +1,11 @@
 CC:=gcc
-CFLAGS:=-std=c99 -Wall -MMD -MP
+CFLAGS:=-std=c99 -Wall -MMD -MP -Ifenster/
 LFLAGS:=
 
 BIN        := raycaster
 BUILD      := build
 BUILD_TYPE := Debug
-SOURCES    := src/main.c
+SOURCES    := src/main.c src/impl.c
 OBJECTS    := $(SOURCES:.c=.c.o)
 OBJECTS    := $(patsubst %,$(BUILD)/%,$(OBJECTS))
 DEPENDS    := $(OBJECTS:.o=.d)
@@ -20,6 +20,18 @@ $(error Unknown Build Type "$(BUILD_TYPE)")
 	endif
 endif
 
+ifeq ($(OS),Windows_NT)
+	LFLAGS+=-lgdi32 -lwinmm
+else
+    UNAME_S := $(shell uname -s)
+    ifeq ($(UNAME_S),Linux)
+        LFLAGS+=-lX11
+    endif
+    ifeq ($(UNAME_S),Darwin)
+        LFLAGS+=-framework Cocoa
+    endif
+endif
+
 -include $(DEPENDS)
 
 all: $(BIN)
@@ -27,11 +39,11 @@ all: $(BIN)
 $(BUILD)/%.c.o: %.c
 	@echo "CC  -" $<
 	@mkdir -p "$$(dirname "$@")"
-	@$(CC) $(CFLAGS) -c $< -o $@
+	@bear --output $(BUILD)/compile_commands.json -- $(CC) $(CFLAGS) -c $< -o $@
 
 $(BIN): $(OBJECTS)
 	@echo Linking $@
-	@$(CXX) $(LFLAGS) $(OBJECTS) -o $@
+	@$(CXX) $(OBJECTS) $(LFLAGS) -o $@
 
 .PHONY: run
 .PHONY: clean
