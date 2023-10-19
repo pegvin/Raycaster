@@ -5,7 +5,7 @@ LFLAGS:=
 BIN        := raycaster
 BUILD      := build
 BUILD_TYPE := Debug
-SOURCES    := src/main.c src/impl.c
+SOURCES    := src/main.c src/impl.c src/gfx.c
 OBJECTS    := $(SOURCES:.c=.c.o)
 OBJECTS    := $(patsubst %,$(BUILD)/%,$(OBJECTS))
 DEPENDS    := $(OBJECTS:.o=.d)
