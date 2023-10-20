@@ -5,9 +5,12 @@
 #include <stdint.h>
 #include <assert.h>
 #include <math.h>
+#include <string.h>
 
 #include "gfx.h"
 #include "vector.h"
+#include "ui/microui.h"
+#include "ui/renderer.h"
 
 #define WIDTH  320
 #define HEIGHT 240
@@ -27,6 +30,15 @@ void BlitBuff() {
 	}
 }
 
+static int text_width(mu_Font font, const char *text, int len) {
+	if (len == -1) { len = strlen(text); }
+	return r_get_text_width(text, len);
+}
+
+static int text_height(mu_Font font) {
+	return r_get_text_height();
+}
+
 int main(void) {
 	struct fenster win = {
 		.title = "raycaster",
@@ -37,144 +49,50 @@ int main(void) {
 	fenster_open(&win);
 	double maxFrameTime = 1000.0f / 30.0f;
 
-	struct DVec2 player = { 22, 12 };
-	struct DVec2 dir = { -1, 0 };
-	struct DVec2 camPlane = { 0, 0.66 }; // 2 * atan(0.66/1.0)=66°
+	mu_Context *ctx = malloc(sizeof(mu_Context));
+	mu_init(ctx);
+	ctx->text_width = text_width;
+	ctx->text_height = text_height;
+	int mouseOldX = 0, mouseOldY = 0, mouseDownOld = 0;
 
-	const struct Rect topHalf = { 0, 0, WIDTH, HEIGHT / 2 };
-	const struct Rect bottomHalf = { 0, HEIGHT / 2, WIDTH, HEIGHT / 2 };
+	// const struct Rect topHalf = { 0, 0, WIDTH, HEIGHT / 2 };
+	// const struct Rect bottomHalf = { 0, HEIGHT / 2, WIDTH, HEIGHT / 2 };
+
+	struct FVec2 player = { 20, 20 };
+	float playerAngle = 0, // Angle at which player is facing (in rads)
+	      playerDx = cos(playerAngle),
+	      playerDy = sin(playerAngle);
 
 	int64_t timeFrameStart = fenster_time();
 	double frameTime = 0;
 	while (fenster_loop(&win) == 0) {
-
-		Gfx_FillRect(pixBuff, WIDTH, HEIGHT, topHalf, COLOR_RGB(34, 77, EB));
-		Gfx_FillRect(pixBuff, WIDTH, HEIGHT, bottomHalf, COLOR_RGB(69, 41, 17));
-
-		for (int x = 0; x < WIDTH; x++) {
-			double camX = (2 * x) / (double)(WIDTH - 1);
-			struct DVec2 rayDir = {
-				(dir.x + camPlane.x) * camX,
-				(dir.y + camPlane.y) * camX,
-			};
-			struct IVec2 map = { player.x, player.y };
-			struct DVec2 sideDist;
-			struct DVec2 deltaDist = {
-				(rayDir.x == 0) ? 1e30 : fabs(1 / rayDir.x),
-				(rayDir.y == 0) ? 1e30 : fabs(1 / rayDir.y)
-			};
-			double perpWallDist;
-			struct IVec2 step;
-			int didHit = 0;
-			int side; // was a NS or a EW wall hit?
-
-			if (rayDir.x < 0) {
-				step.x = -1;
-				sideDist.x = (player.x - map.x) * deltaDist.x;
-			} else {
-				step.x = 1;
-				sideDist.x = (map.x + 1.0 - player.x) * deltaDist.x;
-			}
-			if (rayDir.x < 0) {
-				step.y = -1;
-				sideDist.y = (player.y - map.y) * deltaDist.y;
-			} else {
-				step.y = 1;
-				sideDist.y = (map.y + 1.0 - player.y) * deltaDist.y;
-			}
-
-			while (didHit == 0) {
-				// jump to next map square, either in x-direction, or in y-direction
-				if (sideDist.x < sideDist.y) {
-					sideDist.x += deltaDist.x;
-					map.x += step.x;
-					side = 0;
-				} else if (sideDist.x > sideDist.y) {
-					sideDist.y += deltaDist.y;
-					map.y += step.y;
-					side = 1;
-				}
-
-				// Check if ray has hit a wall
-				if (worldMap[(map.y * mapWidth) + map.x] > 0) didHit = 1;
-			}
-
-			// Calculate distance projected on camera direction (Euclidean distance would give fisheye effect!)
-			if (side == 0) perpWallDist = (sideDist.x - deltaDist.x);
-			else           perpWallDist = (sideDist.y - deltaDist.y);
-
-			// Calculate height of line to draw on screen
-			int lineHeight = (int)(HEIGHT / perpWallDist);
-
-			// Calculate lowest and highest pixel to fill in current stripe
-			int drawStart = (-lineHeight / 2) + (HEIGHT / 2);
-			if (drawStart < 0) drawStart = 0;
-
-			int drawEnd = (lineHeight / 2) + (HEIGHT / 2);
-			if (drawEnd >= HEIGHT) drawEnd = HEIGHT - 1;
-
-			// choose wall color
-			Color color;
-			switch(worldMap[map.x][map.y]) {
-				case 1:  color = COLOR_RGB(FF, 00, 00); break; // red
-				case 2:  color = COLOR_RGB(00, FF, 00); break; // green
-				case 3:  color = COLOR_RGB(00, 00, FF); break; // blue
-				case 4:  color = COLOR_RGB(FF, FF, FF); break; // white
-				default: color = COLOR_RGB(FF, FF, 00); break; // yellow
-			}
-			// give x and y sides different brightness
-			if (side == 1) color = color / 2;
-
-			// draw the pixels of the stripe as a vertical line
-			Gfx_VertLine(pixBuff, WIDTH, HEIGHT, x, drawStart, drawEnd, color);
-			// printf("%f, %f = %d,%d -> %d,%d ->>> %d\n", player.x, player.y, x, drawStart, x, drawEnd, lineHeight);
-		}
-		printf("FrameTime - %f\n", frameTime);
-
-		double moveSpeed = (frameTime / 1000.0) * 5.0;
-		double rotSpeed = (frameTime / 1000.0) * 3.0;
-
 		for (int i = 0; i < 128; i++) {
 			if (win.keys[i]) {
 				switch (i) {
 					case 'W': {
-						struct DVec2 newPos = {
-							(player.x + dir.x) * moveSpeed,
-							(player.y + dir.y) * moveSpeed
-						};
-						if (worldMap[(int)newPos.x][(int)player.y] == 0) player.x += dir.x * moveSpeed;
-						if (worldMap[(int)player.x][(int)newPos.y] == 0) player.y += dir.y * moveSpeed;
-
+						struct FVec2 newPos = { player.x + playerDx, player.y + playerDy };
+						if (map[(int)(player.y/mapUnit)][(int)(newPos.x/mapUnit)] != '#') player.x += playerDx;
+						if (map[(int)(newPos.y/mapUnit)][(int)(player.x/mapUnit)] != '#') player.y += playerDy;
 						break;
 					}
 					case 'S': {
-						struct DVec2 newPos = {
-							player.x - dir.x * moveSpeed,
-							player.y - dir.y * moveSpeed
-						};
-						if (worldMap[(int)newPos.x][(int)player.y] == 0) player.x -= dir.x * moveSpeed;
-						if (worldMap[(int)player.x][(int)newPos.y] == 0) player.y -= dir.y * moveSpeed;
-
+						struct FVec2 newPos = { player.x - playerDx, player.y - playerDy };
+						if (map[(int)(player.y/mapUnit)][(int)(newPos.x/mapUnit)] != '#') player.x -= playerDx;
+						if (map[(int)(newPos.y/mapUnit)][(int)(player.x/mapUnit)] != '#') player.y -= playerDy;
 						break;
 					}
 					case 'A': {
-						// Both camera direction and camera plane must be rotated
-						double oldDirX = dir.x;
-						dir.x = dir.x * cos(rotSpeed) - dir.y * sin(rotSpeed);
-						dir.y = oldDirX * sin(rotSpeed) + dir.y * cos(rotSpeed);
-						double oldPlaneX = camPlane.x;
-						camPlane.x = camPlane.x * cos(rotSpeed) - camPlane.y * sin(rotSpeed);
-						camPlane.y = oldPlaneX * sin(rotSpeed) + camPlane.y * cos(rotSpeed);
+						playerAngle -= 0.1;
+						if (playerAngle < 0) playerAngle = 2 * M_PI;
+						playerDx = cos(playerAngle);
+						playerDy = sin(playerAngle);
 						break;
 					}
 					case 'D': {
-						// Both camera direction and camera plane must be rotated
-						double oldDirX = dir.x;
-						dir.x = dir.x * cos(-rotSpeed) - dir.y * sin(-rotSpeed);
-						dir.y = oldDirX * sin(-rotSpeed) + dir.y * cos(-rotSpeed);
-						double oldPlaneX = camPlane.x;
-						camPlane.x = camPlane.x * cos(-rotSpeed) - camPlane.y * sin(-rotSpeed);
-						camPlane.y = oldPlaneX * sin(-rotSpeed) + camPlane.y * cos(-rotSpeed);
+						playerAngle += 0.1;
+						if (playerAngle > 2 * M_PI) playerAngle -= 2 * M_PI;
+						playerDx = cos(playerAngle);
+						playerDy = sin(playerAngle);
 						break;
 					}
 					default: break;
@@ -182,7 +100,52 @@ int main(void) {
 			}
 		}
 
+		Gfx_FillAll(pixBuff, WIDTH, HEIGHT, COLOR_RGB(00, 00, 00));
+
+		for (int y = 0; y < mapHeight; ++y) {
+			for (int x = 0; x < mapWidth; ++x) {
+				char obj = map[y][x];
+				Color col = COLOR_RGB(0, 0, 0);
+				switch (obj) {
+					case '#': col = COLOR_RGB(0, 0, 255); break;
+					case ' ': break;
+					default: assert(0);
+				}
+				Gfx_FillRect(pixBuff, WIDTH, HEIGHT, (struct Rect) { x * mapUnit, y * mapUnit, mapUnit, mapUnit }, col);
+			}
+		}
+
+		Gfx_Line(pixBuff, COLOR_RGB(255, 0, 0), player.x, player.y, player.x + playerDx * 10, player.y + playerDy * 10, WIDTH, HEIGHT);
+		pixBuff[((long int)player.y * WIDTH) + (long int)player.x] = COLOR_RGB(255, 255, 0);
+
 		BlitBuff();
+
+		// MUI - INPUT
+		if (mouseOldX != win.x || mouseOldY != win.y) { // if any mouse position changed
+			mu_input_mousemove(ctx, win.x, win.y);
+		}
+		if (mouseDownOld != win.mouse) { // if mouse pressed state changed
+			if (win.mouse == 1) {
+				mu_input_mousedown(ctx, win.x, win.y, MU_MOUSE_LEFT);
+			} else {
+				mu_input_mouseup(ctx, win.x, win.y, MU_MOUSE_LEFT);
+			}
+		}
+
+		// MUI - GUI
+		mu_begin(ctx);
+		if (mu_begin_window(ctx, "Demo Window", mu_rect(40, 40, 100, 100))) {
+			mu_text(ctx, "Hello World!\nLMAO\nSAX SUX");
+			mu_button(ctx, "Press me");
+			mu_end_window(ctx);
+		}
+		mu_end(ctx);
+
+		// MUI - DRAW & Update Old Values
+		r_drawAll(ctx, screenBuff, SCREEN_WIDTH, SCREEN_HEIGHT);
+		mouseOldX = win.x;
+		mouseOldX = win.y;
+		mouseDownOld = win.mouse;
 
 		int64_t timeFrameEnd = fenster_time();
 		frameTime = (double)timeFrameEnd - timeFrameStart;

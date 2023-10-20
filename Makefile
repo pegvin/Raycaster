@@ -1,11 +1,11 @@
 CC:=gcc
-CFLAGS:=-std=c99 -Wall -MMD -MP -Ifenster/
+CFLAGS:=-std=c99 -Wall -MMD -MP -Ifenster/ -Isrc/
 LFLAGS:=
 
 BIN        := raycaster
 BUILD      := build
 BUILD_TYPE := Debug
-SOURCES    := src/main.c src/impl.c src/gfx.c
+SOURCES    := src/main.c src/impl.c src/gfx.c src/ui/microui.c src/ui/renderer.c
 OBJECTS    := $(SOURCES:.c=.c.o)
 OBJECTS    := $(patsubst %,$(BUILD)/%,$(OBJECTS))
 DEPENDS    := $(OBJECTS:.o=.d)
