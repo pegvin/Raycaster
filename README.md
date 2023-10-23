@@ -1,5 +1,10 @@
 # Raycaster
-a simple raycaster
+a very simple raycaster
+
+- [x] Raycasting
+- [x] Different Colored Walls
+- [ ] Floor & Ceiling
+- [ ] Textures
 
 ---
 ### Resources
