@@ -13,6 +13,11 @@ typedef uint32_t Color; // 0xAARRGGBB
 #define COLOR_RGBA(r, g, b, a) (((uint32_t)(a) << 24) + ((uint32_t)(r) << 16) + ((uint32_t)(g) << 8) + (uint32_t)(b))
 #define COLOR_RGB(r, g, b) COLOR_RGBA(r, g, b, 0xFF)
 
+#define COLOR_GET_A(color) ((color & 0xFF000000) >> 24)
+#define COLOR_GET_R(color) ((color & 0x00FF0000) >> 16)
+#define COLOR_GET_G(color) ((color & 0x0000FF00) >> 8)
+#define COLOR_GET_B(color) ((color & 0x000000FF) >> 0)
+
 // Fill Whole Buffer With `col` Color
 void Gfx_FillAll(Color* pixBuff, uint32_t w, uint32_t h, Color col);
 void Gfx_FillRect(Color* pixBuff, uint32_t buffW, uint32_t buffH, struct Rect r, Color col);

@@ -6,10 +6,6 @@ struct IVec2 {
 	int x, y;
 };
 
-struct FVec2 {
-	float x, y;
-};
-
 struct DVec2 {
 	double x, y;
 };
